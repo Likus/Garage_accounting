@@ -1,0 +1,651 @@
+<!--
+Балконный учёт версия 1.0
+Приложения для учёта продажи товаров на маркетплейсах
+-->
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Балконный учёт</title>
+  <style>
+    :root {
+      --bg: #f4f6f9; --card: #fff; --accent: #2563eb; --text: #1f2937;
+      --border: #e5e7eb; --danger: #dc2626; --success: #16a34a; --warn: #d97706;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    h1 { margin: 0; font-size: 24px; }
+    .actions { display: flex; gap: 8px; align-items: center; }
+    button, .btn { padding: 8px 14px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+    button:hover, .btn:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: #6b7280; }
+    .btn-danger { background: var(--danger); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    
+    .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat { background: var(--card); padding: 16px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid var(--accent); }
+    .stat h3 { margin: 0 0 6px; font-size: 13px; color: #6b7280; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat .val { font-size: 20px; font-weight: 700; }
+    .stat.money.pos { border-color: var(--success); color: var(--success); }
+    .stat.money.neg { border-color: var(--danger); color: var(--danger); }
+    .stat.money.warn { border-color: var(--warn); color: var(--warn); }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+    .tab { padding: 10px 18px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-weight: 500; white-space: nowrap; }
+    .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .panel { display: none; background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .panel.active { display: block; }
+    .panel h2 { margin-top: 0; font-size: 18px; margin-bottom: 16px; }
+    .panel h2 small { font-weight: 400; color: #6b7280; font-size: 13px; margin-left: 8px; }
+
+    form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; background: #f8fafc; padding: 12px; border-radius: 8px; }
+    input, select { padding: 9px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; width: 100%; }
+    input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; padding: 10px; background: #f8fafc; color: #6b7280; font-weight: 500; border-bottom: 2px solid var(--border); }
+    td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .del-btn { background: transparent; color: var(--danger); padding: 4px 8px; font-size: 16px; border-radius: 4px; }
+    .del-btn:hover { background: #fee2e2; }
+
+    .hidden { display: none !important; }
+    .empty-msg { text-align: center; color: #9ca3af; padding: 20px; font-style: italic; }
+    .status-msg { font-size: 13px; margin-left: 8px; font-weight: 500; }
+    .status-msg.ok { color: var(--success); }
+    .status-msg.warn { color: var(--warn); }
+    .status-msg.err { color: var(--danger); }
+    .status-msg.info { color: var(--accent); }
+    
+    .stock-qty { font-weight: 700; font-size: 15px; color: var(--text); }
+    .cost-cell { font-weight: 600; color: var(--text); background: #f8fafc; }
+    .profit-pos { color: var(--success); font-weight: 600; }
+    .profit-neg { color: var(--danger); font-weight: 600; }
+    
+    #bom-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .bom-row { display: flex; gap: 8px; align-items: center; background: #fff; padding: 6px; border-radius: 6px; border: 1px solid var(--border); }
+    .prod-preview-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+    .prod-preview-row:last-child { border-bottom: none; }
+    .stock-ok { color: var(--success); font-weight: 600; }
+    .stock-low { color: var(--danger); font-weight: 600; }
+
+    .sales-info-box { background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 16px; font-size: 13px; }
+    .sales-info-box span { font-weight: 700; }
+    .status-pill { display: inline-block; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; font-size: 12px; margin-right: 4px; white-space: nowrap; }
+    .status-pill.reserved { background: #fef3c7; color: #92400e; }
+    .status-pill.ordered { background: #dbeafe; color: #1e40af; }
+    .status-pill.shipped { background: #e0e7ff; color: #3730a3; }
+    .status-pill.paid { background: #dcfce7; color: #166534; }
+    .status-btn { padding: 2px 6px; font-size: 11px; background: transparent; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; margin-left: 2px; color: var(--text); }
+    .status-btn:hover { background: var(--bg); border-color: var(--accent); }
+    .status-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* Modal Styles */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+    .modal-box { background: #fff; padding: 24px; border-radius: 12px; width: 90%; max-width: 450px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); text-align: center; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-weight: 600; font-size: 18px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: center; flex-direction: column; }
+    .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280; }
+    .modal-box button { width: 100%; justify-content: center; padding: 12px; margin-bottom: 8px; font-size: 15px; }
+    .modal-box button.btn-outline { color: var(--text); border-color: var(--border); }
+    .modal-box button.btn-outline:hover { background: var(--bg); }
+  </style>
+</head>
+<body>
+
+<!-- Welcome Modal -->
+<div id="welcome-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header" style="justify-content:center;">📦 Балконный учёт</div>
+    <p style="color:#6b7280; margin-bottom:24px;">Выберите действие для начала работы</p>
+    <div class="modal-actions">
+      <button onclick="openExisting()">📂 Открыть существующий файл</button>
+      <button class="btn-outline" onclick="createNew()">📄 Создать новую базу</button>
+    </div>
+    <div id="welcome-status" style="margin-top:12px; font-size:13px; color:var(--danger);"></div>
+  </div>
+</div>
+
+<div id="main-app" class="hidden">
+  <div class="container">
+    <header>
+      <h1>📦 Балконный учёт</h1>
+      <div class="actions">
+        <button id="connect-btn" onclick="switchFile()">📂 Сменить файл</button>
+        <span id="conn-status" class="status-msg info">Файл не выбран</span>
+        <button class="btn-outline" onclick="exportJSON()">💾 Экспорт</button>
+      </div>
+    </header>
+
+    <div class="dashboard">
+      <div class="stat"><h3>Ожидается поставка</h3><div class="val" id="exp-del">0 шт</div></div>
+      <div class="stat"><h3>На складе (компоненты)</h3><div class="val" id="stock-comp">0 шт</div></div>
+      <div class="stat"><h3>Доступно готовых</h3><div class="val" id="stock-prod">0 шт</div></div>
+      <div class="stat"><h3>Продано (оплачено)</h3><div class="val" id="sold">0 шт</div></div>
+      <div class="stat money neg"><h3>Потрачено</h3><div class="val" id="spent">0 ₽</div></div>
+      <div class="stat money pos"><h3>Получено</h3><div class="val" id="received">0 ₽</div></div>
+      <div class="stat money warn"><h3>Ожидается выплат</h3><div class="val" id="payouts">0 ₽</div></div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab" data-target="catalog">📚 Каталог</div>
+      <div class="tab active" data-target="purchases">📥 Закупки</div>
+      <div class="tab" data-target="stock_purchased">📦 Склад покупного</div>
+      <div class="tab" data-target="prod_catalog">🏭 Каталог изделий</div>
+      <div class="tab" data-target="production">🛠 Производство</div>
+      <div class="tab" data-target="sales">💰 Продажи</div>
+    </div>
+
+    <div class="panel" id="catalog">
+      <h2>База покупных изделий</h2>
+      <form id="catalog-form">
+        <input type="text" id="cat-sku" placeholder="Артикул" required>
+        <input type="text" id="cat-name" placeholder="Наименование" required>
+        <button type="submit" id="cat-save-btn">➕ Добавить</button>
+      </form>
+      <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Действия</th></tr></thead><tbody id="catalog-tbody"><tr><td colspan="3" class="empty-msg">Каталог пуст</td></tr></tbody></table>
+    </div>
+
+    <div class="panel active" id="purchases">
+      <h2>Новая закупка</h2>
+      <form id="purchase-form">
+        <select id="purchase-select" required><option value="">Выберите из каталога...</option></select>
+        <input type="number" name="qty" placeholder="Количество" min="1" step="1" required>
+        <input type="number" name="cost" placeholder="Общая стоимость закупки" step="0.01" min="0" required>
+        <input type="date" name="date" required>
+        <select name="status"><option value="pending_delivery">Оплачено, ожидается поставка</option><option value="completed">Завершено</option></select>
+        <button type="submit" id="purchase-save-btn">➕ Добавить</button>
+      </form>
+      <table><thead><tr><th>Дата</th><th>Товар</th><th>Кол-во</th><th>Стоимость</th><th>Статус</th><th>Действия</th></tr></thead><tbody id="purchases-tbody"><tr><td colspan="6" class="empty-msg">Пока нет записей</td></tr></tbody></table>
+    </div>
+
+    <div class="panel" id="stock_purchased">
+      <h2>📦 Склад покупного <small>FIFO-учёт: списание происходит автоматически при производстве</small></h2>
+      <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Доступно на складе</th><th>Стоимость остатков</th></tr></thead><tbody id="stock_purchased-tbody"><tr><td colspan="4" class="empty-msg">Расчёт складских остатков...</td></tr></tbody></table>
+    </div>
+
+    <div class="panel" id="prod_catalog">
+      <h2>🏭 Каталог готовых изделий <small>Состав и расходники на 1 шт</small></h2>
+      <form id="prod-catalog-form">
+        <input type="text" id="prod-cat-sku" placeholder="Артикул изделия" required>
+        <input type="text" id="prod-cat-name" placeholder="Наименование изделия" required>
+        <div style="grid-column: 1 / -1; background: #fff; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+          <div style="font-weight: 500; margin-bottom: 8px;">🔧 Состав / Расходные материалы:</div>
+          <div id="bom-list"></div>
+          <button type="button" onclick="addBomRow()" style="margin-top: 8px; width: auto; padding: 6px 12px;">➕ Добавить компонент</button>
+        </div>
+        <button type="submit" id="prod-cat-save-btn">➕ Добавить</button>
+      </form>
+      <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Состав (на 1 шт)</th><th>Действия</th></tr></thead><tbody id="prod_catalog-tbody"><tr><td colspan="4" class="empty-msg">Каталог изделий пуст</td></tr></tbody></table>
+    </div>
+
+    <div class="panel" id="production">
+      <h2>🛠 Новое производство</h2>
+      <form id="production-form">
+        <select id="prod-item-select" required><option value="">Выберите изделие...</option></select>
+        <input type="number" id="prod-qty" placeholder="Количество к выпуску" min="1" step="1" required>
+        <input type="number" id="prod-cost" placeholder="Доп. расходы" step="0.01" min="0" required>
+        <input type="date" id="prod-date" required>
+        <button type="submit" id="prod-save-btn" disabled>➕ Записать производство</button>
+      </form>
+      <div id="prod-bom-preview" style="background:#f8fafc; padding:12px; border-radius:8px; margin-bottom:16px; border:1px solid var(--border);">
+        <div style="font-weight:500; margin-bottom:8px;">📋 Требуется компонентов:</div>
+        <div id="prod-bom-list"></div>
+        <div id="prod-stock-warning" style="color:var(--danger); margin-top:8px; font-size:13px; font-weight:500;"></div>
+      </div>
+      <table><thead><tr><th>Дата</th><th>Изделие</th><th>Кол-во</th><th>Доп. расходы</th><th>Себестоимость</th><th></th></tr></thead><tbody id="production-tbody"><tr><td colspan="6" class="empty-msg">Пока нет записей</td></tr></tbody></table>
+    </div>
+
+    <div class="panel" id="sales">
+      <h2>💰 Новая продажа / Резерв</h2>
+      <form id="sales-form">
+        <select id="sales-select" required><option value="">Выберите готовое изделие...</option></select>
+        <input type="number" id="sales-qty" placeholder="Количество" min="1" step="1" required>
+        <input type="number" id="sales-price" placeholder="Цена продажи за шт" step="0.01" min="0" required>
+        <input type="date" id="sales-date" required>
+        <input type="text" id="sales-note" placeholder="Примечание (напр. Ozon, WB)">
+        <button type="submit" id="sales-save-btn">➕ Создать резерв</button>
+      </form>
+      <div id="sales-info-box" class="sales-info-box">
+        <div>📦 Доступно на складе: <span id="sales-avail">0</span> шт</div>
+        <div>📊 Сред. себестоимость: <span id="sales-cogs">0.00</span> ₽/шт</div>
+        <div id="sales-profit-preview" style="margin-top:4px; font-weight:500;"></div>
+      </div>
+      <table>
+        <thead><tr><th>Дата</th><th>Изделие</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th>Примечание</th><th>Статусы</th><th>Прибыль</th><th></th></tr></thead>
+        <tbody id="sales-tbody"><tr><td colspan="9" class="empty-msg">Пока нет записей</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal for Editing Sales -->
+  <div id="sale-modal" class="modal-overlay hidden" style="z-index: 1000;">
+    <div class="modal-box" style="max-width:500px; text-align:left;">
+      <div class="modal-header"><span>✏️ Редактирование продажи</span><button class="modal-close" onclick="closeSaleModal()">✕</button></div>
+      <form id="sale-edit-form" style="display:grid; gap:10px;">
+        <input type="hidden" id="edit-sale-id">
+        <select id="edit-sale-item" required><option value="">Выберите изделие...</option></select>
+        <input type="number" id="edit-sale-qty" placeholder="Общее количество" min="1" step="1" required oninput="validateEditStatuses()">
+        <input type="number" id="edit-sale-price" placeholder="Цена за шт" step="0.01" min="0" required>
+        <input type="date" id="edit-sale-date" required>
+        <input type="text" id="edit-sale-note" placeholder="Примечание">
+        <div style="background:#f8fafc; padding:10px; border-radius:6px; border:1px solid var(--border);">
+          <div style="font-weight:500; margin-bottom:6px;">Распределение по статусам (сумма = кол-во):</div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+            <input type="number" id="edit-res" placeholder="Зарезервировано" min="0" step="1" oninput="validateEditStatuses()">
+            <input type="number" id="edit-ord" placeholder="Заказано" min="0" step="1" oninput="validateEditStatuses()">
+            <input type="number" id="edit-ship" placeholder="Отправлено" min="0" step="1" oninput="validateEditStatuses()">
+            <input type="number" id="edit-paid" placeholder="Оплачено" min="0" step="1" oninput="validateEditStatuses()">
+          </div>
+          <div id="edit-status-warn" style="color:var(--danger); font-size:12px; margin-top:4px;"></div>
+        </div>
+      </form>
+      <div class="modal-actions" style="justify-content: flex-end;">
+        <button type="button" class="btn-outline" onclick="closeSaleModal()" style="width:auto;">Отмена</button>
+        <button type="button" id="save-sale-edit" disabled style="width:auto;">💾 Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let fileHandle = null;
+  let data = { catalog: [], purchases: [], production_catalog: [], production: [], sales: [] };
+  let editingCatId = null, editingPurchaseId = null, editingProdItemId = null;
+  let inventory = {};
+  const apiSupported = 'showOpenFilePicker' in window;
+  const STATUSES = ['reserved', 'ordered', 'shipped', 'paid'];
+  const STATUS_LABELS = { reserved: 'Резерв', ordered: 'Заказ', shipped: 'Отпр', paid: 'Опл' };
+
+  const fmt = n => new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  const today = () => new Date().toISOString().split('T')[0];
+  const el = id => document.getElementById(id);
+  const safeSet = (id, val) => { const e = el(id); if (e) e.textContent = val; };
+  const safeHTML = (id, html) => { const e = el(id); if (e) e.innerHTML = html; };
+
+  function setStatus(msg, type = 'info') {
+    const e = el('conn-status'); if (e) { e.textContent = msg; e.className = 'status-msg ' + type; }
+  }
+  function setWelcomeStatus(msg) { const e = el('welcome-status'); if(e) e.textContent = msg; }
+
+  function normalizeData(obj) {
+    const s = Array.isArray(obj?.sales) ? obj.sales.map(s => {
+      if (!s.statusCounts) {
+        const sc = { reserved: 0, ordered: 0, shipped: 0, paid: 0 };
+        if (s.status === 'reserved') sc.reserved = s.qty || 0;
+        else if (s.status === 'ordered') sc.ordered = s.qty || 0;
+        else if (s.status === 'shipped') sc.shipped = s.qty || 0;
+        else if (s.status === 'paid') sc.paid = s.qty || 0;
+        else sc.reserved = s.qty || 0;
+        return { ...s, statusCounts: sc, note: s.note || '' };
+      }
+      return s;
+    }) : [];
+    return {
+      catalog: Array.isArray(obj?.catalog) ? obj.catalog : [],
+      purchases: Array.isArray(obj?.purchases) ? obj.purchases : [],
+      production_catalog: Array.isArray(obj?.production_catalog) ? obj.production_catalog : [],
+      production: Array.isArray(obj?.production) ? obj.production : [],
+      sales: s
+    };
+  }
+
+  function calculateInventory() {
+    const batches = data.purchases.filter(p => p.status === 'completed' && Number(p.qty) > 0)
+      .map(p => ({ id: p.id, item: p.item, date: p.date || '1970-01-01', qty: Number(p.qty), unitCost: Number(p.cost) / Number(p.qty), remaining: Number(p.qty) }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    const stockQty = {}, stockValue = {};
+    batches.forEach(b => { stockQty[b.item] = (stockQty[b.item]||0) + b.qty; stockValue[b.item] = (stockValue[b.item]||0) + b.qty * b.unitCost; });
+    const prodCompCosts = {};
+    [...data.production].sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(prod => {
+      let compCost = 0;
+      (prod.componentsUsed||[]).forEach(comp => {
+        let needed = Number(comp.qty);
+        for (const batch of batches) {
+          if (needed<=0) break;
+          if (batch.item === comp.name && batch.remaining > 0) {
+            const take = Math.min(batch.remaining, needed);
+            compCost += take * batch.unitCost; batch.remaining -= take;
+            stockQty[comp.name] -= take; stockValue[comp.name] -= take * batch.unitCost;
+            needed -= take;
+          }
+        }
+      });
+      prodCompCosts[prod.id] = compCost;
+    });
+    for (const item in stockQty) if (stockQty[item]<=0.001) { delete stockQty[item]; delete stockValue[item]; }
+    return { stockQty, stockValue, prodCompCosts };
+  }
+
+  function getFinishedStats() {
+    const prodQty={}, prodCost={};
+    data.production.forEach(p => { prodQty[p.item]=(prodQty[p.item]||0)+Number(p.qty); prodCost[p.item]=(prodCost[p.item]||0)+Number(p.cost||0)+Number(inventory.prodCompCosts[p.id]||0); });
+    const committed={}; 
+    data.sales.forEach(s => {
+      if(!committed[s.item]) committed[s.item]={qty:0, paid:0, pending:0};
+      const sc=s.statusCounts||{};
+      const sum = (sc.reserved||0)+(sc.ordered||0)+(sc.shipped||0)+(sc.paid||0);
+      committed[s.item].qty += sum;
+      committed[s.item].paid += (sc.paid||0);
+      committed[s.item].pending += ((sc.reserved||0)+(sc.ordered||0)+(sc.shipped||0));
+    });
+    const avail={}; for(const i in prodQty) avail[i]=Math.max(0, prodQty[i]-(committed[i]?.qty||0));
+    return { prodQty, prodCost, committed, available: avail };
+  }
+
+  // --- APP INITIALIZATION FLOW ---
+  function startApp() {
+    el('welcome-modal').classList.add('hidden');
+    el('main-app').classList.remove('hidden');
+    render();
+    setStatus('✅ Работа с файлом начата', 'ok');
+  }
+
+  window.openExisting = async () => {
+    if (!apiSupported) { setWelcomeStatus('Ваш браузер не поддерживает работу с файловой системой. Используйте Chrome/Edge.'); return; }
+    try {
+      setWelcomeStatus('Выбор файла...');
+      const [h] = await window.showOpenFilePicker({ types: [{ description: 'JSON', accept: {'application/json': ['.json']} }], multiple: false });
+      fileHandle = h;
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+      let parsed = {};
+      try { parsed = JSON.parse(text); } catch { parsed = {}; }
+      data = normalizeData(parsed);
+      startApp();
+    } catch (e) { 
+      if (e.name !== 'AbortError') setWelcomeStatus('❌ ' + e.message); 
+      else setWelcomeStatus(''); 
+    }
+  };
+
+  window.createNew = async () => {
+    if (!apiSupported) { setWelcomeStatus('Ваш браузер не поддерживает работу с файловой системой.'); return; }
+    try {
+      setWelcomeStatus('Создание нового файла...');
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'balcony_data.json',
+        types: [{ description: 'JSON', accept: {'application/json': ['.json']} }]
+      });
+      fileHandle = handle;
+      data = normalizeData({}); // Новая пустая база
+      await saveToFile(); // Сохраняем структуру сразу
+      startApp();
+    } catch (e) {
+      if (e.name !== 'AbortError') setWelcomeStatus('❌ ' + e.message);
+      else setWelcomeStatus('');
+    }
+  };
+
+  window.switchFile = async () => {
+    if (fileHandle && !confirm('Сменить файл? Текущие несохраненные изменения будут потеряны.')) return;
+    await window.openExisting();
+  };
+
+  async function saveToFile() {
+    if (!fileHandle) return;
+    try {
+      const w = await fileHandle.createWritable(); await w.write(JSON.stringify(data,null,2)); await w.close();
+      // setStatus('💾 Сохранено', 'ok'); // Не спамим статусом в main-app
+    } catch(e) { console.error('Save error', e); }
+  }
+
+  window.exportJSON = () => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+    a.download = `balcony_data_${today()}.json`; a.click(); URL.revokeObjectURL(a.href);
+  };
+
+  function updateSelect(id, arr, valKey, labelFn, extraFilter) {
+    const s = el(id); if(!s) return; s.innerHTML='<option value="">Выберите...</option>';
+    arr.forEach(i => { if(!extraFilter || extraFilter(i)) { const o=document.createElement('option'); o.value=valKey(i); o.textContent=labelFn(i); s.appendChild(o); }});
+  }
+  function updatePurchaseSelect() { updateSelect('purchase-select', data.catalog, i=>i.name, i=>`${i.sku} | ${i.name}`); }
+  function updateProdCatalogSelect() { updateSelect('prod-item-select', data.production_catalog, i=>i.id, i=>`${i.sku} | ${i.name}`); }
+  function updateSalesSelect() { 
+    const st=getFinishedStats();
+    updateSelect('sales-select', data.production_catalog, i=>i.name, i=>`${i.sku} | ${i.name} (дост: ${st.available[i.name]||0})`, i=>(st.available[i.name]||0)>0); 
+  }
+  function updateAllBomSelects() {
+    document.querySelectorAll('.bom-select').forEach(sel => {
+      const cv=sel.value; sel.innerHTML='<option value="">Выберите компонент...</option>';
+      data.catalog.forEach(i => { const o=document.createElement('option'); o.value=i.name; o.textContent=`${i.sku} | ${i.name}`; sel.appendChild(o); }); sel.value=cv;
+    });
+  }
+
+  window.addBomRow = (name='',qty='') => {
+    const r = document.createElement('div'); r.className='bom-row';
+    r.innerHTML=`<select class="bom-select" style="flex:2;" required></select><input type="number" class="bom-qty" placeholder="Кол-во" min="0.01" step="0.01" value="${qty}" style="flex:1;" required><button type="button" class="del-btn" onclick="this.parentElement.remove(); renderProdPreview();">✕</button>`;
+    if(el('bom-list')) el('bom-list').appendChild(r); updateAllBomSelects(); if(name) { const s=r.querySelector('.bom-select'); if(s) s.value=name; }
+  };
+
+  function renderProdPreview() {
+    const pq=Number(el('prod-qty')?.value)||0, pid=el('prod-item-select')?.value;
+    const sb=el('prod-save-btn'), pl=el('prod-bom-list'), wl=el('prod-stock-warning');
+    if(!pid||pq<=0) { safeHTML('prod-bom-list','<div style="color:#9ca3af;text-align:center;padding:8px;">Выберите изделие и количество</div>'); if(sb) sb.disabled=true; return; }
+    const pi=data.production_catalog.find(p=>p.id===pid);
+    if(!pi||!pi.bom?.length) { safeHTML('prod-bom-list','<div style="color:#6b7280;padding:8px;">Для этого изделия не задан состав</div>'); if(sb) sb.disabled=false; return; }
+    let ok=true, wm='';
+    const html = pi.bom.map(b => {
+      const req=b.qty*pq, av=inventory.stockQty[b.name]||0, is=av>=req;
+      if(!is) ok=false; wm+=!is?`<div>⚠️ Недостаточно: ${b.name} (нужно: ${req}, есть: ${av})</div>`:'';
+      return `<div class="prod-preview-row"><span>${b.name}</span><span>${req} шт. <span class="${is?'stock-ok':'stock-low'}">(${is?'Достаточно':'Не хватает'})</span></span></div>`;
+    }).join('');
+    if(pl) pl.innerHTML = html; if(wl) wl.innerHTML = wm; if(sb) sb.disabled=!ok;
+  }
+
+  function renderSalesInfo() {
+    const it=el('sales-select')?.value, q=Number(el('sales-qty')?.value)||0, p=Number(el('sales-price')?.value)||0, sb=el('sales-save-btn');
+    const st=getFinishedStats();
+    if(!it||q<=0||p<=0) { 
+      safeSet('sales-avail','0'); safeSet('sales-cogs','0.00'); safeHTML('sales-profit-preview',''); if(sb) sb.disabled=true; return; 
+    }
+    safeSet('sales-avail', (st.available[it]||0)+'');
+    const ac=(st.prodCost[it]||0)/(st.prodQty[it]||1);
+    safeSet('sales-cogs', fmt(ac));
+    if(q>(st.available[it]||0)) { 
+      safeHTML('sales-profit-preview',`<span class="stock-low">⚠️ Недостаточно на складе</span>`); if(sb) sb.disabled=true; 
+    }
+    else { 
+      const pr=(q*p)-(q*ac); 
+      safeHTML('sales-profit-preview',`Прогноз прибыли: <span class="${pr>=0?'profit-pos':'profit-neg'}">${fmt(pr)} ₽</span>`); if(sb) sb.disabled=false; 
+    }
+  }
+
+  function openSaleModal(id) {
+    const sale = data.sales.find(s => s.id === id);
+    if(!sale) return;
+    el('edit-sale-id').value = sale.id;
+    updateSelect('edit-sale-item', data.production_catalog, i=>i.name, i=>`${i.sku} | ${i.name}`);
+    el('edit-sale-item').value = sale.item;
+    el('edit-sale-qty').value = sale.qty;
+    el('edit-sale-price').value = sale.price;
+    el('edit-sale-date').value = sale.date;
+    el('edit-sale-note').value = sale.note || '';
+    const sc = sale.statusCounts || {};
+    el('edit-res').value = sc.reserved || 0;
+    el('edit-ord').value = sc.ordered || 0;
+    el('edit-ship').value = sc.shipped || 0;
+    el('edit-paid').value = sc.paid || 0;
+    validateEditStatuses();
+    el('sale-modal').classList.remove('hidden');
+  }
+  window.closeSaleModal = () => el('sale-modal').classList.add('hidden');
+  function validateEditStatuses() {
+    const q = Number(el('edit-sale-qty').value)||0;
+    const sum = Number(el('edit-res').value||0) + Number(el('edit-ord').value||0) + Number(el('edit-ship').value||0) + Number(el('edit-paid').value||0);
+    const warn = el('edit-status-warn');
+    const btn = el('save-sale-edit');
+    if(sum !== q) { warn.textContent = `⚠️ Сумма статусов (${sum}) не равна количеству (${q})`; btn.disabled=true; }
+    else { warn.textContent = ''; btn.disabled=false; }
+  }
+
+  function shiftStatus(id, from) {
+    const idx = STATUSES.indexOf(from);
+    if(idx === STATUSES.length-1) return;
+    const sale = data.sales.find(s => s.id === id);
+    if(sale && sale.statusCounts[from] > 0) {
+      sale.statusCounts[from]--;
+      sale.statusCounts[STATUSES[idx+1]]++;
+      render(); saveToFile();
+    }
+  }
+
+  async function removeRecord(type, id) {
+    if(!confirm('Удалить запись?')) return;
+    data[type]=data[type].filter(r=>r.id!==id);
+    if(type==='purchases'&&editingPurchaseId===id) { editingPurchaseId=null; const f=el('purchase-form'); if(f) f.reset(); const b=el('purchase-save-btn'); if(b){b.textContent='➕ Добавить'; b.classList.remove('btn-secondary');} updatePurchaseSelect(); }
+    render(); await saveToFile();
+  }
+
+  function resetCatForm() { editingCatId=null; safeSet('cat-sku',''); safeSet('cat-name',''); const b=el('cat-save-btn'); if(b){b.textContent='➕ Добавить'; b.classList.remove('btn-secondary');} }
+  window.editCatalogItem = id => { const i=data.catalog.find(r=>r.id===id); if(!i) return; safeSet('cat-sku',i.sku); safeSet('cat-name',i.name); editingCatId=id; const b=el('cat-save-btn'); if(b){b.textContent='💾 Сохранить изменения'; b.classList.add('btn-secondary');} };
+  window.deleteCatalogItem = id => { if(!confirm('Удалить позицию?')) return; data.catalog=data.catalog.filter(r=>r.id!==id); if(editingCatId===id) resetCatForm(); render(); saveToFile(); };
+  window.editPurchase = id => { const r=data.purchases.find(x=>x.id===id); if(!r) return; editingPurchaseId=id; el('purchase-select').value=r.item; el('purchase-form').qty.value=r.qty; el('purchase-form').cost.value=r.cost; el('purchase-form').date.value=r.date; el('purchase-form').status.value=r.status; const b=el('purchase-save-btn'); if(b){b.textContent='💾 Сохранить изменения'; b.classList.add('btn-secondary');} };
+  window.quickStatusPurchase = id => { const r=data.purchases.find(x=>x.id===id); if(r&&r.status==='pending_delivery'){ r.status='completed'; render(); saveToFile(); } };
+  window.editProdCatalogItem = id => { const i=data.production_catalog.find(r=>r.id===id); if(!i) return; editingProdItemId=id; safeSet('prod-cat-sku',i.sku); safeSet('prod-cat-name',i.name); const bl=el('bom-list'); if(bl) bl.innerHTML=''; (i.bom||[]).forEach(b=>addBomRow(b.name,b.qty)); const b=el('prod-cat-save-btn'); if(b){b.textContent='💾 Сохранить изменения'; b.classList.add('btn-secondary');} };
+  window.deleteProdCatalogItem = id => { if(!confirm('Удалить изделие?')) return; data.production_catalog=data.production_catalog.filter(r=>r.id!==id); if(editingProdItemId===id) { editingProdItemId=null; safeSet('prod-cat-sku',''); safeSet('prod-cat-name',''); const bl=el('bom-list'); if(bl) bl.innerHTML=''; const b=el('prod-cat-save-btn'); if(b){b.textContent='➕ Добавить'; b.classList.remove('btn-secondary');} } render(); saveToFile(); };
+
+  function getSKUByName(name) { const item = data.catalog.find(c => c.name === name); return item ? item.sku : '-'; }
+
+  function render() {
+    if (!data || typeof data !== 'object') data = normalizeData({});
+    inventory = calculateInventory();
+    const fin=getFinishedStats();
+    
+    let paidUnits=0, totalReceived=0, totalPending=0, totalProfit=0;
+    data.sales.forEach(s => {
+      const sc=s.statusCounts||{};
+      const sumPaid = sc.paid||0;
+      paidUnits += sumPaid;
+      totalReceived += sumPaid * s.price;
+      totalPending += ((sc.reserved||0)+(sc.ordered||0)+(sc.shipped||0)) * s.price;
+      const avgCost = fin.prodCost[s.item] / (fin.prodQty[s.item]||1) || 0;
+      totalProfit += sumPaid * (s.price - avgCost);
+    });
+
+    safeSet('exp-del', data.purchases.filter(r=>r.status==='pending_delivery').reduce((s,r)=>s+Number(r.qty),0)+' шт');
+    safeSet('stock-comp', Object.values(inventory.stockQty).reduce((s,v)=>s+v,0)+' шт');
+    safeSet('stock-prod', Object.values(fin.available).reduce((s,v)=>s+v,0)+' шт');
+    safeSet('sold', paidUnits+' шт');
+    safeSet('spent', fmt(data.purchases.reduce((s,r)=>s+Number(r.cost),0)+data.production.reduce((s,r)=>s+Number(r.cost||0),0))+' ₽');
+    safeSet('received', fmt(totalReceived)+' ₽');
+    safeSet('payouts', fmt(totalPending)+' ₽');
+    safeSet('profit', fmt(totalProfit)+' ₽');
+
+    safeHTML('catalog-tbody', data.catalog.length===0?'<tr><td colspan="3" class="empty-msg">Каталог пуст</td></tr>':data.catalog.map(r=>`<tr><td>${r.sku||'-'}</td><td>${r.name||'-'}</td><td><button class="btn-outline" style="padding:4px 8px; font-size:13px; margin-right:5px;" onclick="editCatalogItem('${r.id}')">✏️</button><button class="del-btn" onclick="deleteCatalogItem('${r.id}')">✕</button></td></tr>`).join(''));
+
+    safeHTML('purchases-tbody', data.purchases.length===0?'<tr><td colspan="6" class="empty-msg">Пока нет записей</td></tr>':data.purchases.map(r=>`<tr><td>${r.date}</td><td>${r.item}</td><td>${r.qty}</td><td>${fmt(r.cost)} ₽</td><td>${r.status==='pending_delivery'?'<span style="color:var(--warn)">⏳ Ожидается</span>':'<span style="color:var(--success)">✅ Завершено</span>'}</td><td>${r.status==='pending_delivery'?`<button class="btn-outline" style="padding:4px 8px; font-size:13px; margin-right:5px; color:var(--success); border-color:var(--success);" onclick="quickStatusPurchase('${r.id}')">✅ Завершить</button>`:''}<button class="btn-outline" style="padding:4px 8px; font-size:13px; margin-right:5px;" onclick="editPurchase('${r.id}')">✏️</button><button class="del-btn" onclick="removeRecord('purchases','${r.id}')">✕</button></td></tr>`).join(''));
+
+    const lst=Object.entries(inventory.stockQty).sort((a,b)=>a[0].localeCompare(b[0]));
+    safeHTML('stock_purchased-tbody', lst.length===0?'<tr><td colspan="4" class="empty-msg">Нет доступных позиций</td></tr>':lst.map(([n])=>`<tr><td>${getSKUByName(n)}</td><td>${n}</td><td class="stock-qty">${inventory.stockQty[n]} шт</td><td class="cost-cell">${fmt(inventory.stockValue[n])} ₽</td></tr>`).join(''));
+
+    safeHTML('prod_catalog-tbody', data.production_catalog.length===0?'<tr><td colspan="4" class="empty-msg">Каталог пуст</td></tr>':data.production_catalog.map(r=>`<tr><td>${r.sku||'-'}</td><td>${r.name||'-'}</td><td style="max-width:350px;word-break:break-word;font-size:13px;">${(r.bom||[]).map(b=>`${b.name} × ${b.qty}`).join('; ')||'-'}</td><td><button class="btn-outline" style="padding:4px 8px; font-size:13px; margin-right:5px;" onclick="editProdCatalogItem('${r.id}')">✏️</button><button class="del-btn" onclick="deleteProdCatalogItem('${r.id}')">✕</button></td></tr>`).join(''));
+
+    safeHTML('production-tbody', data.production.length===0?'<tr><td colspan="6" class="empty-msg">Пока нет записей</td></tr>':data.production.map(r=>{ const cc=inventory.prodCompCosts[r.id]||0; return `<tr><td>${r.date}</td><td>${r.item}</td><td>${r.qty}</td><td>${fmt(r.cost||0)} ₽</td><td class="cost-cell">${fmt((Number(r.cost)||0)+cc)} ₽</td><td><button class="del-btn" onclick="removeRecord('production','${r.id}')">✕</button></td></tr>`; }).join(''));
+
+    safeHTML('sales-tbody', data.sales.length===0?'<tr><td colspan="9" class="empty-msg">Пока нет записей</td></tr>':data.sales.map(s => {
+      const sc=s.statusCounts||{};
+      const sumPaid = sc.paid||0;
+      const avgCost = fin.prodCost[s.item] / (fin.prodQty[s.item]||1) || 0;
+      const profit = sumPaid * (s.price - avgCost);
+      const pills = STATUSES.map(st => `<span class="status-pill ${st}">${STATUS_LABELS[st]}: ${sc[st]||0}</span>`).join(' ');
+      const btns = STATUSES.slice(0,-1).map((st, i) => {
+        const next = STATUSES[i+1];
+        return sc[st]>0 ? `<button class="status-btn" onclick="shiftStatus('${s.id}','${st}')" title="Перевести 1 шт в ${STATUS_LABELS[next]}">${STATUS_LABELS[st]} →</button>` : '';
+      }).join(' ');
+      return `<tr>
+        <td>${s.date}</td><td>${s.item}</td><td>${s.qty}</td><td>${s.price}</td><td>${fmt(s.total||s.qty*s.price)} ₽</td>
+        <td style="max-width:150px;word-break:break-word;font-size:13px;">${s.note||'-'}</td>
+        <td>${pills}<br><div style="margin-top:4px;">${btns}</div></td>
+        <td class="${profit>=0?'profit-pos':'profit-neg'}">${fmt(profit)} ₽</td>
+        <td><button class="btn-outline" style="padding:4px 8px; font-size:13px; margin-right:4px;" onclick="openSaleModal('${s.id}')">✏️</button><button class="del-btn" onclick="removeRecord('sales','${s.id}')">✕</button></td>
+      </tr>`;
+    }).join(''));
+
+    updatePurchaseSelect(); updateProdCatalogSelect(); updateSalesSelect(); updateAllBomSelects(); renderProdPreview(); renderSalesInfo();
+  }
+
+  // Forms Submit
+  document.getElementById('catalog-form').addEventListener('submit', e => {
+    e.preventDefault(); const sku=el('cat-sku').value.trim(), name=el('cat-name').value.trim(); if(!sku||!name) return;
+    if(editingCatId) { const i=data.catalog.find(r=>r.id===editingCatId); if(i){i.sku=sku; i.name=name;} } else data.catalog.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), sku, name});
+    e.target.reset(); resetCatForm(); render(); saveToFile();
+  });
+
+  document.getElementById('prod-catalog-form').addEventListener('submit', e => {
+    e.preventDefault(); const sku=el('prod-cat-sku').value.trim(), name=el('prod-cat-name').value.trim();
+    const bom=[]; document.querySelectorAll('.bom-row').forEach(r=>{ const s=r.querySelector('.bom-select'), q=r.querySelector('.bom-qty'); if(s?.value&&q?.value>0) { const ci=data.catalog.find(c=>c.name===s.value); bom.push({itemId:ci?.id||'', name:s.value, qty:parseFloat(q.value)}); } });
+    const entry={id:editingProdItemId||Date.now().toString(36)+Math.random().toString(36).slice(2,6), sku, name, bom};
+    if(editingProdItemId) { const i=data.production_catalog.find(r=>r.id===editingProdItemId); if(i) Object.assign(i, entry); } else data.production_catalog.push(entry);
+    e.target.reset(); const bl=el('bom-list'); if(bl) bl.innerHTML=''; editingProdItemId=null; const b=el('prod-cat-save-btn'); if(b){b.textContent='➕ Добавить'; b.classList.remove('btn-secondary');} render(); saveToFile();
+  });
+
+  el('prod-item-select')?.addEventListener('change', renderProdPreview);
+  el('prod-qty')?.addEventListener('input', renderProdPreview);
+  document.getElementById('production-form').addEventListener('submit', e => {
+    e.preventDefault(); const pi=el('prod-item-select').value, pq=Number(el('prod-qty').value), pc=Number(el('prod-cost').value), pd=el('prod-date').value;
+    const prod=data.production_catalog.find(p=>p.id===pi); if(!prod||pq<=0) return;
+    data.production.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), date:pd, item:prod.name, qty:pq, cost:pc, componentsUsed:prod.bom.map(b=>({itemId:b.itemId, name:b.name, qty:b.qty*pq}))});
+    e.target.reset(); el('prod-date').value=today(); render(); saveToFile();
+  });
+
+  el('purchase-form')?.addEventListener('submit', e => {
+    e.preventDefault(); const it=el('purchase-select').value, q=Number(e.target.qty.value), c=Number(e.target.cost.value), d=e.target.date.value, st=e.target.status.value;
+    if(!it||q<=0||c<0) return;
+    if(editingPurchaseId) { const i=data.purchases.find(r=>r.id===editingPurchaseId); if(i) Object.assign(i, {item:it, qty:q, cost:c, date:d, status:st}); } else data.purchases.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), item:it, qty:q, cost:c, date:d, status:st});
+    e.target.reset(); e.target.date.value=today(); editingPurchaseId=null; const b=el('purchase-save-btn'); if(b){b.textContent='➕ Добавить'; b.classList.remove('btn-secondary');} render(); saveToFile();
+  });
+
+  el('sales-select')?.addEventListener('change', renderSalesInfo);
+  el('sales-qty')?.addEventListener('input', renderSalesInfo);
+  el('sales-price')?.addEventListener('input', renderSalesInfo);
+  document.getElementById('sales-form').addEventListener('submit', e => {
+    e.preventDefault(); const it=el('sales-select').value, q=Number(el('sales-qty').value), p=Number(el('sales-price').value), d=el('sales-date').value, note=el('sales-note').value.trim();
+    if(!it||q<=0||p<0) return;
+    data.sales.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), item:it, qty:q, price:p, total:(q*p).toFixed(2), date:d, note, statusCounts:{reserved:q, ordered:0, shipped:0, paid:0}});
+    e.target.reset(); el('sales-date').value=today(); render(); saveToFile();
+  });
+
+  el('save-sale-edit').addEventListener('click', () => {
+    const id = el('edit-sale-id').value;
+    const idx = data.sales.findIndex(s=>s.id===id);
+    if(idx===-1) return;
+    data.sales[idx] = {
+      ...data.sales[idx],
+      item: el('edit-sale-item').value,
+      qty: Number(el('edit-sale-qty').value),
+      price: Number(el('edit-sale-price').value),
+      date: el('edit-sale-date').value,
+      note: el('edit-sale-note').value,
+      statusCounts: {
+        reserved: Number(el('edit-res').value)||0,
+        ordered: Number(el('edit-ord').value)||0,
+        shipped: Number(el('edit-ship').value)||0,
+        paid: Number(el('edit-paid').value)||0
+      },
+      total: (Number(el('edit-sale-qty').value) * Number(el('edit-sale-price').value)).toFixed(2)
+    };
+    closeSaleModal(); render(); saveToFile();
+  });
+
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); const p=el(t.dataset.target); if(p) p.classList.add('active');
+  }));
+
+  document.querySelectorAll('#purchase-form [name="date"], #prod-date, #sales-date').forEach(i=>i.value=today());
+  
+  // Init: Check support immediately
+  if (!apiSupported) {
+    el('welcome-modal').classList.remove('hidden');
+    setWelcomeStatus('Ваш браузер не поддерживает работу с локальными файлами. Пожалуйста, используйте Chrome, Edge или Opera.');
+  }
+</script>
+</body>
+</html>
