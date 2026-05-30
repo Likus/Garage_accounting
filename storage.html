@@ -1,5 +1,5 @@
 <!--
-Балконный учёт версия 1.0
+Балконный учёт версия 1.1
 Приложения для учёта продажи товаров на маркетплейсах
 -->
 
@@ -43,6 +43,7 @@
     .panel.active { display: block; }
     .panel h2 { margin-top: 0; font-size: 18px; margin-bottom: 16px; }
     .panel h2 small { font-weight: 400; color: #6b7280; font-size: 13px; margin-left: 8px; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 
     form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; background: #f8fafc; padding: 12px; border-radius: 8px; }
     input, select { padding: 9px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; width: 100%; }
@@ -95,6 +96,12 @@
     .modal-box button { width: 100%; justify-content: center; padding: 12px; margin-bottom: 8px; font-size: 15px; }
     .modal-box button.btn-outline { color: var(--text); border-color: var(--border); }
     .modal-box button.btn-outline:hover { background: var(--bg); }
+    
+    /* Inner Modal (edit/writeoff) */
+    .inner-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .inner-box { background: #fff; padding: 20px; border-radius: 10px; width: 90%; max-width: 450px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: left; }
+    .inner-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-weight: 600; font-size: 16px; }
+    .inner-close { background: none; border: none; font-size: 18px; cursor: pointer; color: #6b7280; }
   </style>
 </head>
 <body>
@@ -131,6 +138,7 @@
       <div class="stat money neg"><h3>Потрачено</h3><div class="val" id="spent">0 ₽</div></div>
       <div class="stat money pos"><h3>Получено</h3><div class="val" id="received">0 ₽</div></div>
       <div class="stat money warn"><h3>Ожидается выплат</h3><div class="val" id="payouts">0 ₽</div></div>
+      <div class="stat money neg"><h3>Списано в убыток</h3><div class="val" id="writeoff-loss">0 ₽</div></div>
     </div>
 
     <div class="tabs">
@@ -166,8 +174,13 @@
     </div>
 
     <div class="panel" id="stock_purchased">
-      <h2>📦 Склад покупного <small>FIFO-учёт: списание происходит автоматически при производстве</small></h2>
-      <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Доступно на складе</th><th>Стоимость остатков</th></tr></thead><tbody id="stock_purchased-tbody"><tr><td colspan="4" class="empty-msg">Расчёт складских остатков...</td></tr></tbody></table>
+      <div class="panel-header">
+        <h2>📦 Склад покупного <small>FIFO-учёт</small></h2>
+        <button class="btn-danger" onclick="openWriteoffModal()">🗑 Списать в брак/потери</button>
+      </div>
+      <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Доступно на складе</th><th>Стоимость остатков</th></tr></thead><tbody id="stock-tbody"><tr><td colspan="4" class="empty-msg">Расчёт складских остатков...</td></tr></tbody></table>
+      <h3 style="margin-top:24px; font-size:16px;">📜 История списаний</h3>
+      <table style="margin-top:10px;"><thead><tr><th>Дата</th><th>Товар</th><th>Кол-во</th><th>Убыток</th><th>Причина</th><th></th></tr></thead><tbody id="writeoffs-tbody"><tr><td colspan="6" class="empty-msg">Списаний пока нет</td></tr></tbody></table>
     </div>
 
     <div class="panel" id="prod_catalog">
@@ -224,10 +237,10 @@
     </div>
   </div>
 
-  <!-- Modal for Editing Sales -->
-  <div id="sale-modal" class="modal-overlay hidden" style="z-index: 1000;">
-    <div class="modal-box" style="max-width:500px; text-align:left;">
-      <div class="modal-header"><span>✏️ Редактирование продажи</span><button class="modal-close" onclick="closeSaleModal()">✕</button></div>
+  <!-- Sale Edit Modal -->
+  <div id="sale-modal" class="inner-modal hidden">
+    <div class="inner-box">
+      <div class="inner-header"><span>✏️ Редактирование продажи</span><button class="inner-close" onclick="closeModal('sale-modal')">✕</button></div>
       <form id="sale-edit-form" style="display:grid; gap:10px;">
         <input type="hidden" id="edit-sale-id">
         <select id="edit-sale-item" required><option value="">Выберите изделие...</option></select>
@@ -246,9 +259,27 @@
           <div id="edit-status-warn" style="color:var(--danger); font-size:12px; margin-top:4px;"></div>
         </div>
       </form>
-      <div class="modal-actions" style="justify-content: flex-end;">
-        <button type="button" class="btn-outline" onclick="closeSaleModal()" style="width:auto;">Отмена</button>
+      <div style="display:flex; gap:8px; margin-top:15px; justify-content: flex-end;">
+        <button type="button" class="btn-outline" onclick="closeModal('sale-modal')" style="width:auto;">Отмена</button>
         <button type="button" id="save-sale-edit" disabled style="width:auto;">💾 Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Writeoff Modal -->
+  <div id="writeoff-modal" class="inner-modal hidden">
+    <div class="inner-box">
+      <div class="inner-header"><span>🗑 Списание в брак/потери</span><button class="inner-close" onclick="closeModal('writeoff-modal')">✕</button></div>
+      <form id="writeoff-form" style="display:grid; gap:10px;">
+        <select id="writeoff-item" required><option value="">Выберите со склада...</option></select>
+        <input type="number" id="writeoff-qty" placeholder="Количество" min="1" step="1" required>
+        <input type="text" id="writeoff-reason" placeholder="Причина (брак, тесты, утеря...)" required>
+        <input type="date" id="writeoff-date" required>
+        <div id="writeoff-warn" style="color:var(--danger); font-size:12px; min-height:16px;"></div>
+      </form>
+      <div style="display:flex; gap:8px; margin-top:15px; justify-content: flex-end;">
+        <button type="button" class="btn-outline" onclick="closeModal('writeoff-modal')" style="width:auto;">Отмена</button>
+        <button type="button" id="save-writeoff" style="width:auto; background:var(--danger);">🗑 Списать</button>
       </div>
     </div>
   </div>
@@ -256,7 +287,7 @@
 
 <script>
   let fileHandle = null;
-  let data = { catalog: [], purchases: [], production_catalog: [], production: [], sales: [] };
+  let data = { catalog: [], purchases: [], production_catalog: [], production: [], sales: [], write_offs: [] };
   let editingCatId = null, editingPurchaseId = null, editingProdItemId = null;
   let inventory = {};
   const apiSupported = 'showOpenFilePicker' in window;
@@ -273,6 +304,7 @@
     const e = el('conn-status'); if (e) { e.textContent = msg; e.className = 'status-msg ' + type; }
   }
   function setWelcomeStatus(msg) { const e = el('welcome-status'); if(e) e.textContent = msg; }
+  window.closeModal = id => el(id)?.classList.add('hidden');
 
   function normalizeData(obj) {
     const s = Array.isArray(obj?.sales) ? obj.sales.map(s => {
@@ -292,7 +324,8 @@
       purchases: Array.isArray(obj?.purchases) ? obj.purchases : [],
       production_catalog: Array.isArray(obj?.production_catalog) ? obj.production_catalog : [],
       production: Array.isArray(obj?.production) ? obj.production : [],
-      sales: s
+      sales: s,
+      write_offs: Array.isArray(obj?.write_offs) ? obj.write_offs : []
     };
   }
 
@@ -300,25 +333,74 @@
     const batches = data.purchases.filter(p => p.status === 'completed' && Number(p.qty) > 0)
       .map(p => ({ id: p.id, item: p.item, date: p.date || '1970-01-01', qty: Number(p.qty), unitCost: Number(p.cost) / Number(p.qty), remaining: Number(p.qty) }))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
+    
     const stockQty = {}, stockValue = {};
     batches.forEach(b => { stockQty[b.item] = (stockQty[b.item]||0) + b.qty; stockValue[b.item] = (stockValue[b.item]||0) + b.qty * b.unitCost; });
+
+    // Unified deduction events (production + write_offs)
+    const events = [];
+    data.production.forEach(p => {
+      (p.componentsUsed || []).forEach(comp => events.push({ date: p.date, item: comp.name, qty: Number(comp.qty) }));
+    });
+    data.write_offs.forEach(w => {
+      events.push({ date: w.date, item: w.item, qty: Number(w.qty) });
+    });
+    events.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+    for (const ev of events) {
+      let needed = ev.qty;
+      for (const batch of batches) {
+        if (needed <= 0) break;
+        if (batch.item === ev.item && batch.remaining > 0) {
+          const take = Math.min(batch.remaining, needed);
+          batch.remaining -= take;
+          stockQty[ev.item] -= take;
+          stockValue[ev.item] -= take * batch.unitCost;
+          needed -= take;
+        }
+      }
+    }
+
+    // Calculate production component costs separately for table display
     const prodCompCosts = {};
     [...data.production].sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(prod => {
       let compCost = 0;
       (prod.componentsUsed||[]).forEach(comp => {
         let needed = Number(comp.qty);
-        for (const batch of batches) {
-          if (needed<=0) break;
+        for (const batch of batches) { // Note: batches are already reduced, but for cost calc we simulate from scratch or use stored. 
+          // For simplicity & accuracy, we'll recalculate from original batches for each production record chronologically
+        }
+      });
+      prodCompCosts[prod.id] = compCost; // Placeholder, actual calc done below
+    });
+
+    // Proper FIFO cost calc for production
+    const tempBatches = data.purchases.filter(p => p.status === 'completed' && Number(p.qty) > 0)
+      .map(p => ({ item: p.item, remaining: Number(p.qty), unitCost: Number(p.cost) / Number(p.qty) }))
+      .sort((a,b) => new Date(data.purchases.find(x=>x.id===a.id || x.item===a.item).date) - new Date(data.purchases.find(x=>x.id===b.id || x.item===b.item).date)); // Sort by purchase date
+    
+    // Actually, let's keep the original simple & robust approach for prodCosts to avoid overcomplicating
+    const origBatches = data.purchases.filter(p => p.status === 'completed' && Number(p.qty) > 0)
+      .map(p => ({ item: p.item, date: p.date, remaining: Number(p.qty), unitCost: Number(p.cost) / Number(p.qty) }))
+      .sort((a,b) => new Date(a.date) - new Date(b.date));
+    
+    [...data.production].sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(prod => {
+      let compCost = 0;
+      (prod.componentsUsed||[]).forEach(comp => {
+        let needed = Number(comp.qty);
+        for (const batch of origBatches) {
+          if (needed <= 0) break;
           if (batch.item === comp.name && batch.remaining > 0) {
             const take = Math.min(batch.remaining, needed);
-            compCost += take * batch.unitCost; batch.remaining -= take;
-            stockQty[comp.name] -= take; stockValue[comp.name] -= take * batch.unitCost;
+            compCost += take * batch.unitCost;
+            batch.remaining -= take;
             needed -= take;
           }
         }
       });
       prodCompCosts[prod.id] = compCost;
     });
+
     for (const item in stockQty) if (stockQty[item]<=0.001) { delete stockQty[item]; delete stockValue[item]; }
     return { stockQty, stockValue, prodCompCosts };
   }
@@ -359,28 +441,19 @@
       try { parsed = JSON.parse(text); } catch { parsed = {}; }
       data = normalizeData(parsed);
       startApp();
-    } catch (e) { 
-      if (e.name !== 'AbortError') setWelcomeStatus('❌ ' + e.message); 
-      else setWelcomeStatus(''); 
-    }
+    } catch (e) { if (e.name !== 'AbortError') setWelcomeStatus('❌ ' + e.message); else setWelcomeStatus(''); }
   };
 
   window.createNew = async () => {
     if (!apiSupported) { setWelcomeStatus('Ваш браузер не поддерживает работу с файловой системой.'); return; }
     try {
       setWelcomeStatus('Создание нового файла...');
-      const handle = await window.showSaveFilePicker({
-        suggestedName: 'balcony_data.json',
-        types: [{ description: 'JSON', accept: {'application/json': ['.json']} }]
-      });
+      const handle = await window.showSaveFilePicker({ suggestedName: 'balcony_data.json', types: [{ description: 'JSON', accept: {'application/json': ['.json']} }] });
       fileHandle = handle;
-      data = normalizeData({}); // Новая пустая база
-      await saveToFile(); // Сохраняем структуру сразу
+      data = normalizeData({});
+      await saveToFile();
       startApp();
-    } catch (e) {
-      if (e.name !== 'AbortError') setWelcomeStatus('❌ ' + e.message);
-      else setWelcomeStatus('');
-    }
+    } catch (e) { if (e.name !== 'AbortError') setWelcomeStatus('❌ ' + e.message); else setWelcomeStatus(''); }
   };
 
   window.switchFile = async () => {
@@ -392,7 +465,6 @@
     if (!fileHandle) return;
     try {
       const w = await fileHandle.createWritable(); await w.write(JSON.stringify(data,null,2)); await w.close();
-      // setStatus('💾 Сохранено', 'ok'); // Не спамим статусом в main-app
     } catch(e) { console.error('Save error', e); }
   }
 
@@ -410,6 +482,9 @@
   function updateSalesSelect() { 
     const st=getFinishedStats();
     updateSelect('sales-select', data.production_catalog, i=>i.name, i=>`${i.sku} | ${i.name} (дост: ${st.available[i.name]||0})`, i=>(st.available[i.name]||0)>0); 
+  }
+  function updateWriteoffSelect() {
+    updateSelect('writeoff-item', Object.entries(inventory.stockQty).map(([name, qty]) => ({name, qty})), i=>i.name, i=>`${i.name} (доступно: ${i.qty})`, i=>i.qty > 0);
   }
   function updateAllBomSelects() {
     document.querySelectorAll('.bom-select').forEach(sel => {
@@ -442,19 +517,12 @@
   function renderSalesInfo() {
     const it=el('sales-select')?.value, q=Number(el('sales-qty')?.value)||0, p=Number(el('sales-price')?.value)||0, sb=el('sales-save-btn');
     const st=getFinishedStats();
-    if(!it||q<=0||p<=0) { 
-      safeSet('sales-avail','0'); safeSet('sales-cogs','0.00'); safeHTML('sales-profit-preview',''); if(sb) sb.disabled=true; return; 
-    }
+    if(!it||q<=0||p<=0) { safeSet('sales-avail','0'); safeSet('sales-cogs','0.00'); safeHTML('sales-profit-preview',''); if(sb) sb.disabled=true; return; }
     safeSet('sales-avail', (st.available[it]||0)+'');
     const ac=(st.prodCost[it]||0)/(st.prodQty[it]||1);
     safeSet('sales-cogs', fmt(ac));
-    if(q>(st.available[it]||0)) { 
-      safeHTML('sales-profit-preview',`<span class="stock-low">⚠️ Недостаточно на складе</span>`); if(sb) sb.disabled=true; 
-    }
-    else { 
-      const pr=(q*p)-(q*ac); 
-      safeHTML('sales-profit-preview',`Прогноз прибыли: <span class="${pr>=0?'profit-pos':'profit-neg'}">${fmt(pr)} ₽</span>`); if(sb) sb.disabled=false; 
-    }
+    if(q>(st.available[it]||0)) { safeHTML('sales-profit-preview',`<span class="stock-low">⚠️ Недостаточно на складе</span>`); if(sb) sb.disabled=true; }
+    else { const pr=(q*p)-(q*ac); safeHTML('sales-profit-preview',`Прогноз прибыли: <span class="${pr>=0?'profit-pos':'profit-neg'}">${fmt(pr)} ₽</span>`); if(sb) sb.disabled=false; }
   }
 
   function openSaleModal(id) {
@@ -475,7 +543,6 @@
     validateEditStatuses();
     el('sale-modal').classList.remove('hidden');
   }
-  window.closeSaleModal = () => el('sale-modal').classList.add('hidden');
   function validateEditStatuses() {
     const q = Number(el('edit-sale-qty').value)||0;
     const sum = Number(el('edit-res').value||0) + Number(el('edit-ord').value||0) + Number(el('edit-ship').value||0) + Number(el('edit-paid').value||0);
@@ -518,7 +585,7 @@
     inventory = calculateInventory();
     const fin=getFinishedStats();
     
-    let paidUnits=0, totalReceived=0, totalPending=0, totalProfit=0;
+    let paidUnits=0, totalReceived=0, totalPending=0, totalProfit=0, totalWriteoffCost=0;
     data.sales.forEach(s => {
       const sc=s.statusCounts||{};
       const sumPaid = sc.paid||0;
@@ -528,6 +595,7 @@
       const avgCost = fin.prodCost[s.item] / (fin.prodQty[s.item]||1) || 0;
       totalProfit += sumPaid * (s.price - avgCost);
     });
+    data.write_offs.forEach(w => totalWriteoffCost += w.cost || 0);
 
     safeSet('exp-del', data.purchases.filter(r=>r.status==='pending_delivery').reduce((s,r)=>s+Number(r.qty),0)+' шт');
     safeSet('stock-comp', Object.values(inventory.stockQty).reduce((s,v)=>s+v,0)+' шт');
@@ -537,13 +605,16 @@
     safeSet('received', fmt(totalReceived)+' ₽');
     safeSet('payouts', fmt(totalPending)+' ₽');
     safeSet('profit', fmt(totalProfit)+' ₽');
+    safeSet('writeoff-loss', fmt(totalWriteoffCost)+' ₽');
 
     safeHTML('catalog-tbody', data.catalog.length===0?'<tr><td colspan="3" class="empty-msg">Каталог пуст</td></tr>':data.catalog.map(r=>`<tr><td>${r.sku||'-'}</td><td>${r.name||'-'}</td><td><button class="btn-outline" style="padding:4px 8px; font-size:13px; margin-right:5px;" onclick="editCatalogItem('${r.id}')">✏️</button><button class="del-btn" onclick="deleteCatalogItem('${r.id}')">✕</button></td></tr>`).join(''));
 
     safeHTML('purchases-tbody', data.purchases.length===0?'<tr><td colspan="6" class="empty-msg">Пока нет записей</td></tr>':data.purchases.map(r=>`<tr><td>${r.date}</td><td>${r.item}</td><td>${r.qty}</td><td>${fmt(r.cost)} ₽</td><td>${r.status==='pending_delivery'?'<span style="color:var(--warn)">⏳ Ожидается</span>':'<span style="color:var(--success)">✅ Завершено</span>'}</td><td>${r.status==='pending_delivery'?`<button class="btn-outline" style="padding:4px 8px; font-size:13px; margin-right:5px; color:var(--success); border-color:var(--success);" onclick="quickStatusPurchase('${r.id}')">✅ Завершить</button>`:''}<button class="btn-outline" style="padding:4px 8px; font-size:13px; margin-right:5px;" onclick="editPurchase('${r.id}')">✏️</button><button class="del-btn" onclick="removeRecord('purchases','${r.id}')">✕</button></td></tr>`).join(''));
 
     const lst=Object.entries(inventory.stockQty).sort((a,b)=>a[0].localeCompare(b[0]));
-    safeHTML('stock_purchased-tbody', lst.length===0?'<tr><td colspan="4" class="empty-msg">Нет доступных позиций</td></tr>':lst.map(([n])=>`<tr><td>${getSKUByName(n)}</td><td>${n}</td><td class="stock-qty">${inventory.stockQty[n]} шт</td><td class="cost-cell">${fmt(inventory.stockValue[n])} ₽</td></tr>`).join(''));
+    safeHTML('stock-tbody', lst.length===0?'<tr><td colspan="4" class="empty-msg">Нет доступных позиций</td></tr>':lst.map(([n])=>`<tr><td>${getSKUByName(n)}</td><td>${n}</td><td class="stock-qty">${inventory.stockQty[n]} шт</td><td class="cost-cell">${fmt(inventory.stockValue[n])} ₽</td></tr>`).join(''));
+
+    safeHTML('writeoffs-tbody', data.write_offs.length===0?'<tr><td colspan="6" class="empty-msg">Списаний пока нет</td></tr>':[...data.write_offs].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(w=>`<tr><td>${w.date}</td><td>${w.item}</td><td>${w.qty}</td><td class="cost-cell">${fmt(w.cost)} ₽</td><td>${w.reason}</td><td><button class="del-btn" onclick="removeRecord('write_offs','${w.id}')">✕</button></td></tr>`).join(''));
 
     safeHTML('prod_catalog-tbody', data.production_catalog.length===0?'<tr><td colspan="4" class="empty-msg">Каталог пуст</td></tr>':data.production_catalog.map(r=>`<tr><td>${r.sku||'-'}</td><td>${r.name||'-'}</td><td style="max-width:350px;word-break:break-word;font-size:13px;">${(r.bom||[]).map(b=>`${b.name} × ${b.qty}`).join('; ')||'-'}</td><td><button class="btn-outline" style="padding:4px 8px; font-size:13px; margin-right:5px;" onclick="editProdCatalogItem('${r.id}')">✏️</button><button class="del-btn" onclick="deleteProdCatalogItem('${r.id}')">✕</button></td></tr>`).join(''));
 
@@ -571,81 +642,57 @@
     updatePurchaseSelect(); updateProdCatalogSelect(); updateSalesSelect(); updateAllBomSelects(); renderProdPreview(); renderSalesInfo();
   }
 
+  // --- WRITEOFF LOGIC ---
+  window.openWriteoffModal = () => {
+    updateWriteoffSelect();
+    el('writeoff-form').reset(); el('writeoff-date').value = today();
+    safeHTML('writeoff-warn', ''); el('save-writeoff').disabled = false;
+    el('writeoff-modal').classList.remove('hidden');
+  };
+
+  el('save-writeoff').addEventListener('click', () => {
+    const item = el('writeoff-item').value;
+    const qty = Number(el('writeoff-qty').value);
+    const reason = el('writeoff-reason').value.trim();
+    const date = el('writeoff-date').value;
+    if(!item || qty<=0 || !reason) { safeHTML('writeoff-warn','⚠️ Заполните все поля'); return; }
+    if(qty > (inventory.stockQty[item]||0)) { safeHTML('writeoff-warn','⚠️ Недостаточно на складе'); return; }
+
+    // Calculate FIFO cost for this write-off
+    let cost = 0, needed = qty;
+    const tempBatches = data.purchases.filter(p => p.status === 'completed' && Number(p.qty) > 0)
+      .map(p => ({ item: p.item, remaining: Number(p.qty), unitCost: Number(p.cost) / Number(p.qty) }))
+      .sort((a,b) => new Date(data.purchases.find(x=>x.item===a.item).date) - new Date(data.purchases.find(x=>x.item===b.item).date));
+    for (const batch of tempBatches) {
+      if(needed<=0) break;
+      if(batch.item === item && batch.remaining > 0) {
+        const take = Math.min(batch.remaining, needed);
+        cost += take * batch.unitCost;
+        needed -= take;
+      }
+    }
+
+    data.write_offs.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      date, item, qty, reason, cost
+    });
+    closeModal('writeoff-modal');
+    render(); saveToFile();
+  });
+
   // Forms Submit
-  document.getElementById('catalog-form').addEventListener('submit', e => {
-    e.preventDefault(); const sku=el('cat-sku').value.trim(), name=el('cat-name').value.trim(); if(!sku||!name) return;
-    if(editingCatId) { const i=data.catalog.find(r=>r.id===editingCatId); if(i){i.sku=sku; i.name=name;} } else data.catalog.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), sku, name});
-    e.target.reset(); resetCatForm(); render(); saveToFile();
-  });
+  document.getElementById('catalog-form').addEventListener('submit', e => { e.preventDefault(); const sku=el('cat-sku').value.trim(), name=el('cat-name').value.trim(); if(!sku||!name) return; if(editingCatId) { const i=data.catalog.find(r=>r.id===editingCatId); if(i){i.sku=sku; i.name=name;} } else data.catalog.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), sku, name}); e.target.reset(); resetCatForm(); render(); saveToFile(); });
+  document.getElementById('prod-catalog-form').addEventListener('submit', e => { e.preventDefault(); const sku=el('prod-cat-sku').value.trim(), name=el('prod-cat-name').value.trim(); const bom=[]; document.querySelectorAll('.bom-row').forEach(r=>{ const s=r.querySelector('.bom-select'), q=r.querySelector('.bom-qty'); if(s?.value&&q?.value>0) { const ci=data.catalog.find(c=>c.name===s.value); bom.push({itemId:ci?.id||'', name:s.value, qty:parseFloat(q.value)}); } }); const entry={id:editingProdItemId||Date.now().toString(36)+Math.random().toString(36).slice(2,6), sku, name, bom}; if(editingProdItemId) { const i=data.production_catalog.find(r=>r.id===editingProdItemId); if(i) Object.assign(i, entry); } else data.production_catalog.push(entry); e.target.reset(); const bl=el('bom-list'); if(bl) bl.innerHTML=''; editingProdItemId=null; const b=el('prod-cat-save-btn'); if(b){b.textContent='➕ Добавить'; b.classList.remove('btn-secondary');} render(); saveToFile(); });
+  el('prod-item-select')?.addEventListener('change', renderProdPreview); el('prod-qty')?.addEventListener('input', renderProdPreview);
+  document.getElementById('production-form').addEventListener('submit', e => { e.preventDefault(); const pi=el('prod-item-select').value, pq=Number(el('prod-qty').value), pc=Number(el('prod-cost').value), pd=el('prod-date').value; const prod=data.production_catalog.find(p=>p.id===pi); if(!prod||pq<=0) return; data.production.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), date:pd, item:prod.name, qty:pq, cost:pc, componentsUsed:prod.bom.map(b=>({itemId:b.itemId, name:b.name, qty:b.qty*pq}))}); e.target.reset(); el('prod-date').value=today(); render(); saveToFile(); });
+  el('purchase-form')?.addEventListener('submit', e => { e.preventDefault(); const it=el('purchase-select').value, q=Number(e.target.qty.value), c=Number(e.target.cost.value), d=e.target.date.value, st=e.target.status.value; if(!it||q<=0||c<0) return; if(editingPurchaseId) { const i=data.purchases.find(r=>r.id===editingPurchaseId); if(i) Object.assign(i, {item:it, qty:q, cost:c, date:d, status:st}); } else data.purchases.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), item:it, qty:q, cost:c, date:d, status:st}); e.target.reset(); e.target.date.value=today(); editingPurchaseId=null; const b=el('purchase-save-btn'); if(b){b.textContent='➕ Добавить'; b.classList.remove('btn-secondary');} render(); saveToFile(); });
+  el('sales-select')?.addEventListener('change', renderSalesInfo); el('sales-qty')?.addEventListener('input', renderSalesInfo); el('sales-price')?.addEventListener('input', renderSalesInfo);
+  document.getElementById('sales-form').addEventListener('submit', e => { e.preventDefault(); const it=el('sales-select').value, q=Number(el('sales-qty').value), p=Number(el('sales-price').value), d=el('sales-date').value, note=el('sales-note').value.trim(); if(!it||q<=0||p<0) return; data.sales.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), item:it, qty:q, price:p, total:(q*p).toFixed(2), date:d, note, statusCounts:{reserved:q, ordered:0, shipped:0, paid:0}}); e.target.reset(); el('sales-date').value=today(); render(); saveToFile(); });
+  el('save-sale-edit').addEventListener('click', () => { const id = el('edit-sale-id').value; const idx = data.sales.findIndex(s=>s.id===id); if(idx===-1) return; data.sales[idx] = { ...data.sales[idx], item: el('edit-sale-item').value, qty: Number(el('edit-sale-qty').value), price: Number(el('edit-sale-price').value), date: el('edit-sale-date').value, note: el('edit-sale-note').value, statusCounts: { reserved: Number(el('edit-res').value)||0, ordered: Number(el('edit-ord').value)||0, shipped: Number(el('edit-ship').value)||0, paid: Number(el('edit-paid').value)||0 }, total: (Number(el('edit-sale-qty').value) * Number(el('edit-sale-price').value)).toFixed(2) }; closeModal('sale-modal'); render(); saveToFile(); });
 
-  document.getElementById('prod-catalog-form').addEventListener('submit', e => {
-    e.preventDefault(); const sku=el('prod-cat-sku').value.trim(), name=el('prod-cat-name').value.trim();
-    const bom=[]; document.querySelectorAll('.bom-row').forEach(r=>{ const s=r.querySelector('.bom-select'), q=r.querySelector('.bom-qty'); if(s?.value&&q?.value>0) { const ci=data.catalog.find(c=>c.name===s.value); bom.push({itemId:ci?.id||'', name:s.value, qty:parseFloat(q.value)}); } });
-    const entry={id:editingProdItemId||Date.now().toString(36)+Math.random().toString(36).slice(2,6), sku, name, bom};
-    if(editingProdItemId) { const i=data.production_catalog.find(r=>r.id===editingProdItemId); if(i) Object.assign(i, entry); } else data.production_catalog.push(entry);
-    e.target.reset(); const bl=el('bom-list'); if(bl) bl.innerHTML=''; editingProdItemId=null; const b=el('prod-cat-save-btn'); if(b){b.textContent='➕ Добавить'; b.classList.remove('btn-secondary');} render(); saveToFile();
-  });
-
-  el('prod-item-select')?.addEventListener('change', renderProdPreview);
-  el('prod-qty')?.addEventListener('input', renderProdPreview);
-  document.getElementById('production-form').addEventListener('submit', e => {
-    e.preventDefault(); const pi=el('prod-item-select').value, pq=Number(el('prod-qty').value), pc=Number(el('prod-cost').value), pd=el('prod-date').value;
-    const prod=data.production_catalog.find(p=>p.id===pi); if(!prod||pq<=0) return;
-    data.production.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), date:pd, item:prod.name, qty:pq, cost:pc, componentsUsed:prod.bom.map(b=>({itemId:b.itemId, name:b.name, qty:b.qty*pq}))});
-    e.target.reset(); el('prod-date').value=today(); render(); saveToFile();
-  });
-
-  el('purchase-form')?.addEventListener('submit', e => {
-    e.preventDefault(); const it=el('purchase-select').value, q=Number(e.target.qty.value), c=Number(e.target.cost.value), d=e.target.date.value, st=e.target.status.value;
-    if(!it||q<=0||c<0) return;
-    if(editingPurchaseId) { const i=data.purchases.find(r=>r.id===editingPurchaseId); if(i) Object.assign(i, {item:it, qty:q, cost:c, date:d, status:st}); } else data.purchases.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), item:it, qty:q, cost:c, date:d, status:st});
-    e.target.reset(); e.target.date.value=today(); editingPurchaseId=null; const b=el('purchase-save-btn'); if(b){b.textContent='➕ Добавить'; b.classList.remove('btn-secondary');} render(); saveToFile();
-  });
-
-  el('sales-select')?.addEventListener('change', renderSalesInfo);
-  el('sales-qty')?.addEventListener('input', renderSalesInfo);
-  el('sales-price')?.addEventListener('input', renderSalesInfo);
-  document.getElementById('sales-form').addEventListener('submit', e => {
-    e.preventDefault(); const it=el('sales-select').value, q=Number(el('sales-qty').value), p=Number(el('sales-price').value), d=el('sales-date').value, note=el('sales-note').value.trim();
-    if(!it||q<=0||p<0) return;
-    data.sales.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), item:it, qty:q, price:p, total:(q*p).toFixed(2), date:d, note, statusCounts:{reserved:q, ordered:0, shipped:0, paid:0}});
-    e.target.reset(); el('sales-date').value=today(); render(); saveToFile();
-  });
-
-  el('save-sale-edit').addEventListener('click', () => {
-    const id = el('edit-sale-id').value;
-    const idx = data.sales.findIndex(s=>s.id===id);
-    if(idx===-1) return;
-    data.sales[idx] = {
-      ...data.sales[idx],
-      item: el('edit-sale-item').value,
-      qty: Number(el('edit-sale-qty').value),
-      price: Number(el('edit-sale-price').value),
-      date: el('edit-sale-date').value,
-      note: el('edit-sale-note').value,
-      statusCounts: {
-        reserved: Number(el('edit-res').value)||0,
-        ordered: Number(el('edit-ord').value)||0,
-        shipped: Number(el('edit-ship').value)||0,
-        paid: Number(el('edit-paid').value)||0
-      },
-      total: (Number(el('edit-sale-qty').value) * Number(el('edit-sale-price').value)).toFixed(2)
-    };
-    closeSaleModal(); render(); saveToFile();
-  });
-
-  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active'); const p=el(t.dataset.target); if(p) p.classList.add('active');
-  }));
-
-  document.querySelectorAll('#purchase-form [name="date"], #prod-date, #sales-date').forEach(i=>i.value=today());
-  
-  // Init: Check support immediately
-  if (!apiSupported) {
-    el('welcome-modal').classList.remove('hidden');
-    setWelcomeStatus('Ваш браузер не поддерживает работу с локальными файлами. Пожалуйста, используйте Chrome, Edge или Opera.');
-  }
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active')); t.classList.add('active'); const p=el(t.dataset.target); if(p) p.classList.add('active'); }));
+  document.querySelectorAll('#purchase-form [name="date"], #prod-date, #sales-date, #writeoff-date').forEach(i=>i.value=today());
+  if (!apiSupported) { el('welcome-modal').classList.remove('hidden'); setWelcomeStatus('Ваш браузер не поддерживает работу с локальными файлами. Пожалуйста, используйте Chrome, Edge или Opera.'); }
 </script>
 </body>
 </html>
